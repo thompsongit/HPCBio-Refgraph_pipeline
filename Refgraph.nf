@@ -1,65 +1,69 @@
 #!/usr/bin/env nextflow
-params.genome = “data/genome.fa”
-params.sample = “data/sample.cram”
+params.genome = "data/genome.fa"
+params.sample = "data/sample.cram"
+params.assembler = 'megahit'
 
 genome_file = file(params.genome)
 sample_file = file(params.sample)
 
 process prepare_genome{
-  input:
-        file genome from genome_file
-  output:
-        file “${genome}.fai” into genome_index_ch
-  script:
-  """
-  module load SAMtools
-  samtools faidx ${genome}
-  """
+    module 'SAMtools'
+    input:
+    file genome from genome_file
+    output:
+    file "${genome}.fai" into genome_index_ch
+    
+    script:
+    """
+    samtools faidx ${genome}
+    """
 }
 
 process extract_unmap {
-  input:
+    module 'SAMtools'
+    input:
     file sample from sample_file	
     file genome from genome_file
     file index from genome_index_ch
-  output:
+    output:
     file 'unmap.bam' into bam_ch
 
-  script:
-        """
-        module load SAMtools
-        samtools view -bt index -S -b -f 4 sample > unmap.bam
-        """
+    script:
+    """
+    samtools view -bt index -S -b -f 4 sample > unmap.bam
+    """
 }
 
 process bamtofastq {
-
-  input:
-        file 'unmap.bam' from bam_ch
-
-  output:
-        file 'unmap_r*' into fq_ch
+    module 'SAMtools'
+    input:
+    file 'unmap.bam' from bam_ch
+    output:
+    file '*' into fq_ch
 
     script:
-        """
-        module load SAMtools
-        samtools fastq unmap.bam -1 unmap_r1.fastq -2 unmap_r2.fastq
-        """
+    """
+    samtools fastq -f 12 unmap.bam -1 PEr1.fastq -2 PEr2.fastq
+    samtools fastq -f 68 -F 8 unmap.bam > SEr1.fastq
+    samtools fastq -f 132 -F 8 unmap.bam > SEr2.fastq
+    """
 }
 
+if(params.assembler == 'megahit'){
 process megahit_assemble {
-      input:
-          file 'unmap_r*' from fq_ch  
+    module 'MEGAHIT' 
+    input:
+    file '*' from fq_ch  
+    output:
+    file 'megahit_results' into assembly_ch
 
-      output:
-          file 'megahit_results' into assembly_ch
-
-      script:
-          """
-          module load MEGAHIT
-          megahit -1 unmap_r1 -2 unmap_r2 -o megahit_results
-          """
+    script:
+    """
+    megahit -1 PEr1.fastq -2 PEr2.fastq -r SEr1.fastq,SEr2.fastq -o megahit_results
+    """
 }
+}
+
 /*
   *Megahit for different input data types:
   *megahit -1 pe_1.fq -2 pe_2.fq -o out  # 1 paired-end library
@@ -69,21 +73,21 @@ process megahit_assemble {
 
 library_ch = Channel.fromPath('library')
 process remove_contaminants {
-      input:
-          file 'library' from library_ch
-          file 'megahit_results' from assembly_ch
+    module 'Kraken2'
+    input:
+    file 'library' from library_ch
+    file 'megahit_results' from assembly_ch
 
-      output:
-          file 'contigs_kraken2.txt' into classification_ch
-          file 'sample_specific_contigs.fa' into result
+    output:
+    file 'contigs_kraken2.txt' into classification_ch
+    file 'sample_specific_contigs.fa' into result
           
-      script:
-          """
-          module load Kraken2
-          kraken2 --db library megahit_results/final.contigs.fa > contigs_kraken2.txt
-          grep U contigs_kraken2.txt > unclassified.txt
-          awk '{print $2}' unclassified.txt > unclassified_readID.txt
-          grep -w -A 1 -f unclassified_readID.txt megahit_results/final.contigs.fa --no-group-separator > sample_specific_contigs.fa
-          """
+    script:
+    """
+    kraken2 --db library megahit_results/final.contigs.fa > contigs_kraken2.txt
+    grep U contigs_kraken2.txt > unclassified.txt
+    awk '{print $2}' unclassified.txt > unclassified_readID.txt
+    grep -w -A 1 -f unclassified_readID.txt megahit_results/final.contigs.fa --no-group-separator > sample_specific_contigs.fa
+    """
 }
 
