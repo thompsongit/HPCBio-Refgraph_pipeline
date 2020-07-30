@@ -2,6 +2,7 @@
 params.genome = "data/genome.fa"
 params.sample = "data/sample.cram"
 params.assembler = 'megahit'
+params.skipKraken2 = false
 
 genome_file = file(params.genome)
 sample_file = file(params.sample)
@@ -49,21 +50,52 @@ process bamtofastq {
     """
 }
 
+process trimming {
+    module 'fastp'
+    input:
+    file '*' from fq_ch
+    output:
+    file '*' into trim_ch
+    script:
+    """
+    fastp -i PEr1.fastq -o PEr1_trim.fastq -I PEr2.fastq -O PEr2_trim.fastq --unpaired1 upr1_trim.fastq --unpaired2 upr2_trim.fastq -l 20 -q 20
+    fastp -i SEr1.fastq -o SEr1_trim.fastq -l 20 -q 20
+    fastp -i SEr2.fastq -o SEr2_trim.fastq -l 20 -q 20
+    """
+}
+
 if(params.assembler == 'megahit'){
 process megahit_assemble {
     module 'MEGAHIT' 
     input:
-    file '*' from fq_ch  
+    file '*' from trim_ch  
     output:
     file 'megahit_results' into assembly_ch
 
     script:
     """
-    megahit -1 PEr1.fastq -2 PEr2.fastq -r SEr1.fastq,SEr2.fastq -o megahit_results
+    megahit -1 PEr1.fastq -2 PEr2.fastq -r upr1_trim.fastq,upr2_trim.fastq,SEr1.fastq,SEr2.fastq -o megahit_results
     """
 }
 }
 
+else if(params.assembler == 'masurca'){
+process masurca_assemble {
+    module 'MaSuRCA'
+    input:
+    file '*' from trim_ch
+    output:
+    file '*' into assembly_ch
+    
+    script:
+    """
+    masurca config.txt
+    bash assemble.sh
+    """
+}
+}
+
+else {println "Please choose assembler from megahit and masurca"}
 /*
   *Megahit for different input data types:
   *megahit -1 pe_1.fq -2 pe_2.fq -o out  # 1 paired-end library
@@ -72,6 +104,7 @@ process megahit_assemble {
   */
 
 library_ch = Channel.fromPath('library')
+if(params.skipKraken2 == false){
 process remove_contaminants {
     module 'Kraken2'
     input:
@@ -90,4 +123,4 @@ process remove_contaminants {
     grep -w -A 1 -f unclassified_readID.txt megahit_results/final.contigs.fa --no-group-separator > sample_specific_contigs.fa
     """
 }
-
+}
