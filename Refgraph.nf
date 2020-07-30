@@ -21,7 +21,7 @@ process prepare_genome{
 }
 
 process extract_unmap {
-    module 'SAMtools'
+    module 'SAMtools/1.10'
     input:
     file sample from sample_file	
     file genome from genome_file
@@ -36,7 +36,7 @@ process extract_unmap {
 }
 
 process bamtofastq {
-    module 'SAMtools'
+    module 'SAMtools/1.10'
     input:
     file 'unmap.bam' from bam_ch
     output:
@@ -51,7 +51,7 @@ process bamtofastq {
 }
 
 process trimming {
-    module 'fastp'
+    module 'fastp/0.20.0'
     input:
     file '*' from fq_ch
     output:
@@ -64,9 +64,11 @@ process trimming {
     """
 }
 
+params.megahitPath = "./results/megahit/"
 if(params.assembler == 'megahit'){
 process megahit_assemble {
     module 'MEGAHIT/1.2.9' 
+    publishDir params.megahitPath, mode:'link'
     input:
     file '*' from trim_ch  
     output:
@@ -74,14 +76,16 @@ process megahit_assemble {
 
     script:
     """
-    megahit -1 PEr1.fastq -2 PEr2.fastq -r upr1_trim.fastq,upr2_trim.fastq,SEr1.fastq,SEr2.fastq -o megahit_results
+    megahit -1 PEr1_trim.fastq -2 PEr2_trim.fastq -r upr1_trim.fastq,upr2_trim.fastq,SEr1_trim.fastq,SEr2_trim.fastq -o megahit_results
     """
 }
 }
 
+params.masurcaPath = "./results/masurca/"
 else if(params.assembler == 'masurca'){
 process masurca_assemble {
-    module 'MaSuRCA'
+    module 'MaSuRCA/3.2.3'
+    publishDir params.masurcaPath, mode:'link'
     input:
     file '*' from trim_ch
     output:
@@ -107,7 +111,7 @@ params.kraken2Path = "./results/Kraken2/"
 library_ch = Channel.fromPath('library')
 if(params.skipKraken2 == false){
 process remove_contaminants {
-    module 'Kraken2'
+    module 'Kraken2/2.0.8'
     publishDir params.kraken2Path, mode:'link'
     input:
     file 'library' from library_ch
