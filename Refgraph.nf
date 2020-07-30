@@ -8,7 +8,7 @@ genome_file = file(params.genome)
 sample_file = file(params.sample)
 
 process prepare_genome{
-    module 'SAMtools'
+    module 'SAMtools/1.10'
     input:
     file genome from genome_file
     output:
@@ -66,7 +66,7 @@ process trimming {
 
 if(params.assembler == 'megahit'){
 process megahit_assemble {
-    module 'MEGAHIT' 
+    module 'MEGAHIT/1.2.9' 
     input:
     file '*' from trim_ch  
     output:
