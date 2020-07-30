@@ -103,10 +103,12 @@ else {println "Please choose assembler from megahit and masurca"}
   *megahit -1 a1.fq,b1.fq,c1.fq -2 a2.fq,b2.fq,c2.fq -r se1.fq,se2.fq -o out # 3 paired-end libraries + 2 SE libraries
   */
 
+params.kraken2Path = "./results/Kraken2/"
 library_ch = Channel.fromPath('library')
 if(params.skipKraken2 == false){
 process remove_contaminants {
     module 'Kraken2'
+    publishDir params.kraken2Path, mode:'link'
     input:
     file 'library' from library_ch
     file 'megahit_results' from assembly_ch
