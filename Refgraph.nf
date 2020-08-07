@@ -1,18 +1,65 @@
 #!/usr/bin/env nextflow
-params.genome = "data/genome.fa"
-params.sample = "data/sample.cram"
-params.assembler = 'megahit'
-params.skipKraken2 = false
 
-genome_file = file(params.genome)
-sample_file = file(params.sample)
+/*parameters that are specified at the command line or via config file*/
+params.genome                = false          /*genome fasta file, must specify complete path. Required parameters*/
+params.samplePath            = false          /*input folder, must specify complete path. Required parameters*/
+params.outputDir             = false          /*output folder, must specify complete path. Required parameters*/
+params.singleEnd             = false          /*options: true|false. true = the input type is single end reads; false = the input type is paired reads. Default is false*/
+params.assembler             = 'megahit'      /*options: megahit|masurca. Default is megahit*/
+params.skipKraken2           = true           /*options: true|false. Default is true = skip kraken2 */
+
+
+/*output folder paths*/
+readPrepPath                 = "${params.outputDir}/read_prep"
+trimPath                     = "${params.outputDir}/trimmed"
+megahitPath                  = "${params.outputDir}/megahit"
+masurcaPath                  = "${params.outputDir}/masurca"
+kraken2Path                  = "${params.outputDir}/kraken2"
+
+/*cluster parameters */
+myExecutor                   = 'slurm'
+myQueue                      = 'hpcbio'
+defaultCPU                   = '1'
+defaultMemory                = '10'
+assemblerCPU                 = '12'
+assemblerMemory              = '500'
+
+/*software stack*/
+params.fastpMod              = 'fastp/0.20.0-IGB-gcc-4.9.4'
+params.samtoolsMod           = 'samtools/1.3'
+params.megahitMod            = 'MEGAHIT/1.2.9-IGB-gcc-8.2.0'
+
+
+/*Prepare input*/
+genome_file                  = file(params.genome)
+genomeStore                  = genome_file.getParent()
+if( !genome_file.exists() ) exit 1, "Missing reference genome file: ${genome_file}"
+CRAM_Ch1 = Channel.fromPath("${params.samplePath}")
+
+
+/*
+
+  prepare_genome 
+  This process is executed only once
+
+*/
+
 
 process prepare_genome{
-    module 'SAMtools/1.10'
+    tag                    { genome }
+    executor               myExecutor
+    cpus                   defaultCPU
+    queue                  myQueue
+    memory                 "$defaultMemory GB"
+    module                 params.samtoolsMod
+    storeDir               genomeStore
+    validExitStatus        0
+    
     input:
     file genome from genome_file
+
     output:
-    file "${genome}.fai" into genome_index_ch
+    file "*.fai" into genome_index_ch
     
     script:
     """
@@ -20,113 +67,133 @@ process prepare_genome{
     """
 }
 
+/*
+
+  extract_unmap 
+  The input files are in CRAM format which have been previously aligned to genome prepared in previous step
+
+*/
+
 process extract_unmap {
-    module 'SAMtools/1.10'
+    tag                    { name }
+    executor               myExecutor
+    cpus                   defaultCPU
+    queue                  myQueue
+    memory                 "$defaultMemory GB"
+    module                 params.samtoolsMod
+    publishDir             readPrepPath, mode: "copy"	    
+    validExitStatus        0,1
+ 
     input:
-    file sample from sample_file	
+    set val(name), file(CRAM) from CRAM_Ch1	
     file genome from genome_file
     file index from genome_index_ch
+
     output:
-    file 'unmap.bam' into bam_ch
-
-    script:
-    """
-    samtools view -bt index -S -b -f 4 sample > unmap.bam
-    """
-}
-
-process bamtofastq {
-    module 'SAMtools/1.10'
-    input:
-    file 'unmap.bam' from bam_ch
-    output:
-    file '*' into fq_ch
-
-    script:
-    """
-    samtools fastq -f 12 unmap.bam -1 PEr1.fastq -2 PEr2.fastq
-    samtools fastq -f 68 -F 8 unmap.bam > SEr1.fastq
-    samtools fastq -f 132 -F 8 unmap.bam > SEr2.fastq
-    """
-}
-
-process trimming {
-    module 'fastp/0.20.0'
-    input:
-    file '*' from fq_ch
-    output:
-    file '*' into trim_ch
-    script:
-    """
-    fastp -i PEr1.fastq -o PEr1_trim.fastq -I PEr2.fastq -O PEr2_trim.fastq --unpaired1 upr1_trim.fastq --unpaired2 upr2_trim.fastq -l 20 -q 20
-    fastp -i SEr1.fastq -o SEr1_trim.fastq -l 20 -q 20
-    fastp -i SEr2.fastq -o SEr2_trim.fastq -l 20 -q 20
-    """
-}
-
-params.megahitPath = "./results/megahit/"
-if(params.assembler == 'megahit'){
-process megahit_assemble {
-    module 'MEGAHIT/1.2.9' 
-    publishDir params.megahitPath, mode:'link'
-    input:
-    file '*' from trim_ch  
-    output:
-    file 'megahit_results' into assembly_ch
-
-    script:
-    """
-    megahit -1 PEr1_trim.fastq -2 PEr2_trim.fastq -r upr1_trim.fastq,upr2_trim.fastq,SEr1_trim.fastq,SEr2_trim.fastq -o megahit_results
-    """
-}
-}
-
-params.masurcaPath = "./results/masurca/"
-else if(params.assembler == 'masurca'){
-process masurca_assemble {
-    module 'MaSuRCA/3.2.3'
-    publishDir params.masurcaPath, mode:'link'
-    input:
-    file '*' from trim_ch
-    output:
-    file '*' into assembly_ch
+    set val(name), file('*.fastq') optional true into fq_ch
+    file '*'
     
     script:
+    if(params.singleEnd){
     """
-    masurca config.txt
-    bash assemble.sh
+    samtools view -bt ${index} -S -b -f 4 ${name} > ${name.baseName}.unmap.bam
+    samtools fastq -f 4 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R1.fastq
     """
-}
+    } else {
+    """
+    samtools view -bt ${index} -S -b -f 4 ${name} > ${name.baseName}.unmap.bam
+    samtools fastq -f 12 ${name.baseName}.unmap.bam -1 ${name.baseName}_PE_R1.fastq -2 ${name.baseName}_PE_R2.fastq
+    samtools fastq -f 68 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R1.fastq
+    samtools fastq -f 132 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R2.fastq
+    """    
+    }
+
 }
 
-else {println "Please choose assembler from megahit and masurca"}
+/*
+
+  trimming 
+
+*/
+
+process trimming {
+    tag                    { name }
+    executor               myExecutor
+    cpus                   2
+    queue                  myQueue
+    memory                 "$defaultMemory GB"
+    publishDir             trimPath, mode: "copy"
+    module                 params.fastpMod
+    validExitStatus        0,1
+
+
+    input:
+    set val(name), file(reads) from fq_ch
+    
+    output:
+    set val(name), file('*.trimmed.fq') optional true into trim_ch
+    file '*'
+	    
+    script:
+    if(params.singleEnd){
+    """
+    fastp --in1 ${reads[0]} --out1 "${name.baseName}.SE.R1.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_SE_fastp.html --json "${name.baseName}"_SE_fastp.json
+    """
+    } else {
+    """
+    fastp --in1 ${reads[0]} --in2 ${reads[1]} --out1 "${name.baseName}.PE.R1.trimmed.fq"  --out2 "${name.baseName}.PE.R2.trimmed.fq" --unpaired1 "${name.baseName}.unpR1.trimmed.fq" --unpaired2 "${name.baseName}.unpR2.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus}  --html "${name.baseName}"_PE_fastp.html --json "${name.baseName}"_PE_fastp.json
+    fastp --in1 ${reads[2]} --out1 "${name.baseName}.unmR1.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR1_fastp.html --json "${name.baseName}"_unmR1_fastp.json
+    fastp --in1 ${reads[3]} --out1 "${name.baseName}.unmR2.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR2_fastp.html --json "${name.baseName}"_unmR2_fastp.json
+    """
+    }
+}
+
 /*
   *Megahit for different input data types:
   *megahit -1 pe_1.fq -2 pe_2.fq -o out  # 1 paired-end library
   *megahit --12 interleaved.fq -o out # one paired & interleaved paired-end library
   *megahit -1 a1.fq,b1.fq,c1.fq -2 a2.fq,b2.fq,c2.fq -r se1.fq,se2.fq -o out # 3 paired-end libraries + 2 SE libraries
-  */
+*/
 
-params.kraken2Path = "./results/Kraken2/"
-library_ch = Channel.fromPath('library')
-if(params.skipKraken2 == false){
-process remove_contaminants {
-    module 'Kraken2/2.0.8'
-    publishDir params.kraken2Path, mode:'link'
+
+process megahit_assemble {
+    tag                    { name }
+    executor               myExecutor
+    cpus                   assemblerCPU
+    queue                  myQueue
+    memory                 "$assemblerMemory GB"
+    module                 params.megahitMod 
+    publishDir             megahitPath , mode:'copy'
+
     input:
-    file 'library' from library_ch
-    file 'megahit_results' from assembly_ch
+    set name, file(fastqs)  from trim_ch  
 
     output:
-    file 'contigs_kraken2.txt' into classification_ch
-    file 'sample_specific_contigs.fa' into result
-          
+    file '*'
+
     script:
+    if(params.singleEnd){
     """
-    kraken2 --db library megahit_results/final.contigs.fa > contigs_kraken2.txt
-    grep U contigs_kraken2.txt > unclassified.txt
-    awk '{print $2}' unclassified.txt > unclassified_readID.txt
-    grep -w -A 1 -f unclassified_readID.txt megahit_results/final.contigs.fa --no-group-separator > sample_specific_contigs.fa
+    megahit -1 ${fastqs[0]} -o ${name.baseName}.megahit_results
     """
+    } else {
+    """
+    megahit -1 ${fastqs[0]} -2 ${fastqs[1]} -r ${fastqs[2]},${fastqs[3]},${fastqs[4]},${fastqs[5]} -o ${name.baseName}.megahit_results
+    """
+    }
 }
-}
+
+/*
+
+  masurca
+  To be added later
+
+*/
+
+/*
+
+  kraken2
+  To be added later
+
+*/
+

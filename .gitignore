@@ -1,0 +1,39 @@
+#ignore all data and results directories
+data/*
+results/*
+work/*
+.nextflow/*
+
+
+#now ignore specific files
+*.nextflow*
+*.html
+*.txt
+*.log
+*.zip
+*.xls
+*.xlsx
+*.csv
+*.docx
+*.pdf
+*.pptx
+*.gz
+*.fastq
+*.fasta
+*.json
+*.tgz
+*.png
+*.css
+*.out
+*.err
+*.bam
+*.bam.bai
+*.bw
+*.tsv
+*.summary
+*.bz2
+*.cov
+*.er
+*.ou
+
+#end ignore
