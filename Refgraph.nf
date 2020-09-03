@@ -15,20 +15,25 @@ trimPath                     = "${params.outputDir}/trimmed"
 megahitPath                  = "${params.outputDir}/megahit"
 masurcaPath                  = "${params.outputDir}/masurca"
 kraken2Path                  = "${params.outputDir}/kraken2"
+multiqcPath                  = "${params.outputDir}/multiqc"
+metricsPath                  = "${params.outputDir}/assembly_metrics"
 
 /*cluster parameters */
 myExecutor                   = 'slurm'
-myQueue                      = 'hpcbio'
+myQueue                      = 'normal'
 defaultCPU                   = '1'
-defaultMemory                = '10'
+defaultMemory                = '20'
 assemblerCPU                 = '12'
 assemblerMemory              = '500'
+params.clusterAcct           = " -A h3bionet "
 
 /*software stack*/
+params.perlMod               = 'Perl/5.24.1-IGB-gcc-4.9.4'
 params.fastpMod              = 'fastp/0.20.0-IGB-gcc-4.9.4'
 params.samtoolsMod           = 'samtools/1.3'
 params.megahitMod            = 'MEGAHIT/1.2.9-IGB-gcc-8.2.0'
-
+params.assemblathon          = "/home/groups/hpcbio/apps/FAlite/assemblathon_stats.pl"
+params.multiqcMod            = "MultiQC/1.7-IGB-gcc-4.9.4-Python-3.6.1"
 
 /*Prepare input*/
 genome_file                  = file(params.genome)
@@ -48,6 +53,7 @@ CRAM_Ch1 = Channel.fromPath("${params.samplePath}")
 process prepare_genome{
     tag                    { genome }
     executor               myExecutor
+    clusterOptions         params.clusterAcct 
     cpus                   defaultCPU
     queue                  myQueue
     memory                 "$defaultMemory GB"
@@ -77,6 +83,7 @@ process prepare_genome{
 process extract_unmap {
     tag                    { name }
     executor               myExecutor
+    clusterOptions         params.clusterAcct 
     cpus                   defaultCPU
     queue                  myQueue
     memory                 "$defaultMemory GB"
@@ -103,8 +110,8 @@ process extract_unmap {
     """
     samtools view -bt ${index} -S -b -f 4 ${name} > ${name.baseName}.unmap.bam
     samtools fastq -f 12 ${name.baseName}.unmap.bam -1 ${name.baseName}_PE_R1.fastq -2 ${name.baseName}_PE_R2.fastq
-    samtools fastq -f 68 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R1.fastq
-    samtools fastq -f 132 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R2.fastq
+    #samtools fastq -f 68 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R1.fastq
+    #samtools fastq -f 132 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R2.fastq
     """    
     }
 
@@ -119,6 +126,7 @@ process extract_unmap {
 process trimming {
     tag                    { name }
     executor               myExecutor
+    clusterOptions         params.clusterAcct 
     cpus                   2
     queue                  myQueue
     memory                 "$defaultMemory GB"
@@ -132,6 +140,7 @@ process trimming {
     
     output:
     set val(name), file('*.trimmed.fq') optional true into trim_ch
+    set val(name), file('*.json') optional true into multiqc_ch
     file '*'
 	    
     script:
@@ -142,8 +151,8 @@ process trimming {
     } else {
     """
     fastp --in1 ${reads[0]} --in2 ${reads[1]} --out1 "${name.baseName}.PE.R1.trimmed.fq"  --out2 "${name.baseName}.PE.R2.trimmed.fq" --unpaired1 "${name.baseName}.unpR1.trimmed.fq" --unpaired2 "${name.baseName}.unpR2.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus}  --html "${name.baseName}"_PE_fastp.html --json "${name.baseName}"_PE_fastp.json
-    fastp --in1 ${reads[2]} --out1 "${name.baseName}.unmR1.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR1_fastp.html --json "${name.baseName}"_unmR1_fastp.json
-    fastp --in1 ${reads[3]} --out1 "${name.baseName}.unmR2.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR2_fastp.html --json "${name.baseName}"_unmR2_fastp.json
+    #fastp --in1 ${reads[2]} --out1 "${name.baseName}.unmR1.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR1_fastp.html --json "${name.baseName}"_unmR1_fastp.json
+    #fastp --in1 ${reads[3]} --out1 "${name.baseName}.unmR2.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR2_fastp.html --json "${name.baseName}"_unmR2_fastp.json
     """
     }
 }
@@ -159,6 +168,7 @@ process trimming {
 process megahit_assemble {
     tag                    { name }
     executor               myExecutor
+    clusterOptions         params.clusterAcct 
     cpus                   assemblerCPU
     queue                  myQueue
     memory                 "$assemblerMemory GB"
@@ -169,16 +179,24 @@ process megahit_assemble {
     set name, file(fastqs)  from trim_ch  
 
     output:
+    set val(name), file('*.stats') optional true into metrics_ch
     file '*'
 
     script:
     if(params.singleEnd){
     """
     megahit -1 ${fastqs[0]} -o ${name.baseName}.megahit_results
+    
+    perl $params.assemblathon ${name.baseName}.megahit_results/final.contigs.fa > ${name.baseName}.megahit_results/final.contigs.fa.stats
     """
     } else {
     """
-    megahit -1 ${fastqs[0]} -2 ${fastqs[1]} -r ${fastqs[2]},${fastqs[3]},${fastqs[4]},${fastqs[5]} -o ${name.baseName}.megahit_results
+    #megahit -1 ${fastqs[0]} -2 ${fastqs[1]} -r ${fastqs[2]},${fastqs[3]},${fastqs[4]},${fastqs[5]} -o ${name.baseName}.megahit_results
+
+    megahit -1 ${fastqs[0]} -2 ${fastqs[1]}  -o ${name.baseName}.megahit_results
+
+    perl $params.assemblathon ${name.baseName}.megahit_results/final.contigs.fa > ${name.baseName}.final.contigs.fa.stats
+
     """
     }
 }
@@ -197,3 +215,46 @@ process megahit_assemble {
 
 */
 
+/*
+
+  QC all samples
+
+*/
+process MultiQC_readPrep {
+    executor               myExecutor
+    clusterOptions         params.clusterAcct 
+    cpus                   2
+    queue                  myQueue
+    memory                 "$defaultMemory GB"
+    module                 params.multiqcMod
+    publishDir             multiqcPath, mode: 'copy', overwrite: true
+ 
+    input:
+    file('*') from multiqc_ch.collect()
+
+    output:
+    file "*"
+
+    """
+    multiqc .
+    """
+} 
+
+process Assembly_metrics {
+    executor               myExecutor
+    cpus                   2
+    queue                  myQueue
+    memory                 "$defaultMemory GB"
+    module                 params.perlMod
+    publishDir             metricsPath, mode: 'copy', overwrite: true
+ 
+    input:
+    file('*') from metrics_ch.collect()
+
+    output:
+    file "*"
+
+    """
+    cat *.stats > assembly_metrics.txt
+    """
+} 
