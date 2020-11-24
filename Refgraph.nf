@@ -90,7 +90,10 @@ process extract_unmap {
     module                 params.samtoolsMod
     publishDir             readPrepPath, mode: "copy"	    
     validExitStatus        0,1
- 
+    errorStrategy          'finish'
+    scratch                '/scratch'
+    stageOutMode           'copy'
+    
     input:
     set val(name), file(CRAM) from CRAM_Ch1	
     file genome from genome_file
@@ -133,7 +136,9 @@ process trimming {
     publishDir             trimPath, mode: "copy"
     module                 params.fastpMod
     validExitStatus        0,1
-
+    errorStrategy          'finish'
+    scratch                '/scratch'
+    stageOutMode           'copy'
 
     input:
     set val(name), file(reads) from fq_ch
@@ -174,7 +179,11 @@ process megahit_assemble {
     memory                 "$assemblerMemory GB"
     module                 params.megahitMod 
     publishDir             megahitPath , mode:'copy'
-
+    validExitStatus        0,1
+    errorStrategy          'finish'
+    scratch                '/scratch'
+    stageOutMode           'copy'
+    
     input:
     set name, file(fastqs)  from trim_ch  
 
@@ -258,3 +267,4 @@ process Assembly_metrics {
     cat *.stats > assembly_metrics.txt
     """
 } 
+
