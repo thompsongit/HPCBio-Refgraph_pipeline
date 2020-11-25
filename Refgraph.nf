@@ -6,7 +6,15 @@ params.samplePath            = false          /*input folder, must specify compl
 params.outputDir             = false          /*output folder, must specify complete path. Required parameters*/
 params.singleEnd             = false          /*options: true|false. true = the input type is single end reads; false = the input type is paired reads. Default is false*/
 params.assembler             = 'megahit'      /*options: megahit|masurca. Default is megahit*/
-params.skipKraken2           = true           /*options: true|false. Default is true = skip kraken2 */
+params.skipKraken2           = true           /*options: true|false. Default is true which means that kraken2 will be skipped*/
+
+/* parameters for readprep = qctrimming and adaptor removal */
+params.skipTrim              = false           /*qc-trimming of reads. options: true|false. Default is false*/     
+params.min_read_length       = '20'            /*minimum length of read to be kept after trimming for downstream analysis. Default is 20*/
+params.min_base_quality      = '20'            /*minimum base quality. Default is 20*/
+params.guess_adapter         = true            /*auto-detect adapter from input file. options: true|false. Default is true*/
+params.forward_adaptor       = false           /*adapter sequence to be clipped off (forward). */
+params.reverse_adaptor       = false           /*adapter sequence to be clipped off (reverse). Used for paired reads only*.*/
 
 
 /*output folder paths*/
@@ -149,18 +157,22 @@ process trimming {
     file '*'
 	    
     script:
+    trimOptions      = params.skipTrim ? ' ' :  ' -l ${params.min_read_length} --cut_right --cut_right_window_size 3 --cut_right_mean_quality ${params.min_base_quality} '
+    adapterOptionsSE = params.guess_adapter ? ' ' : ' --adapter_sequence="${params.forward_adaptor}" '
+    adapterOptionsPE = params.guess_adapter ? ' --detect_adapter_for_pe ' : ' --detect_adapter_for_pe --adapter_sequence="${params.forward_adaptor}"  --adapter_sequence_r2="${params.reverse_adaptor}"  '
+
     if(params.singleEnd){
     """
-    fastp --in1 ${reads[0]} --out1 "${name.baseName}.SE.R1.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_SE_fastp.html --json "${name.baseName}"_SE_fastp.json
+    fastp --in1 ${reads[0]} --out1 "${name.baseName}.SE.R1.trimmed.fq" ${adapterOptionsSE} ${trimOptions} --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_SE_fastp.html --json "${name.baseName}"_SE_fastp.json
     """
     } else {
     """
-    fastp --in1 ${reads[0]} --in2 ${reads[1]} --out1 "${name.baseName}.PE.R1.trimmed.fq"  --out2 "${name.baseName}.PE.R2.trimmed.fq" --unpaired1 "${name.baseName}.unpR1.trimmed.fq" --unpaired2 "${name.baseName}.unpR2.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus}  --html "${name.baseName}"_PE_fastp.html --json "${name.baseName}"_PE_fastp.json
-    #fastp --in1 ${reads[2]} --out1 "${name.baseName}.unmR1.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR1_fastp.html --json "${name.baseName}"_unmR1_fastp.json
-    #fastp --in1 ${reads[3]} --out1 "${name.baseName}.unmR2.trimmed.fq" -l 20 -q 20 --thread ${task.cpus} -w ${task.cpus} --html "${name.baseName}"_unmR2_fastp.html --json "${name.baseName}"_unmR2_fastp.json
+    fastp --in1 ${reads[0]} --in2 ${reads[1]} --out1 "${name.baseName}.PE.R1.trimmed.fq"  --out2 "${name.baseName}.PE.R2.trimmed.fq" --unpaired1 "${name.baseName}.unpR1.trimmed.fq" --unpaired2 "${name.baseName}.unpR2.trimmed.fq" ${adapterOptionsPE}  ${trimOptions} --thread ${task.cpus} -w ${task.cpus}  --html "${name.baseName}"_PE_fastp.html --json "${name.baseName}"_PE_fastp.json
     """
     }
 }
+
+
 
 /*
   *Megahit for different input data types:
