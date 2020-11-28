@@ -157,7 +157,7 @@ process trimming {
     file '*'
 	    
     script:
-    trimOptions      = params.skipTrim ? ' ' :  ' -l ${params.min_read_length} --cut_right --cut_right_window_size 3 --cut_right_mean_quality ${params.min_base_quality} '
+    trimOptions      = params.skipTrim ? ' ' :  ' -l 20 -q 20  --cut_right --cut_right_window_size 3 --cut_right_mean_quality 20 '
     adapterOptionsSE = params.guess_adapter ? ' ' : ' --adapter_sequence="${params.forward_adaptor}" '
     adapterOptionsPE = params.guess_adapter ? ' --detect_adapter_for_pe ' : ' --detect_adapter_for_pe --adapter_sequence="${params.forward_adaptor}"  --adapter_sequence_r2="${params.reverse_adaptor}"  '
 
