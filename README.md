@@ -20,12 +20,39 @@ Clone this repo to your local (linux-based) cluster environment....
 
 # Running the pipeline
 
-text goes here
+Make sure  nextflow is installed and in your path.
 
-examples:
+The basic command to run the pipeline is: 
 
-text goes here
+<pre>
+nextflow run Refgraph.nf
+</pre>
 
+
+There are a number of parameters whose values can be set or reset at the command line or via a config file.
+
+Examples of config files are included in this repo in the conf folder.
+
+
+To run the pipeline with a config file, please type:
+
+<pre>
+nextflow run -c config Refgraph.nf
+</pre>
+
+
+To run the pipeline and specify parameters at the command line, please type all parameters in the same line or by using the backslash to continue in the next line like this:
+
+<pre>
+
+nextflow run Refgraph.nf \
+--genome                = "/some/path/data/genome/GRCh38_full_analysis_set_plus_decoy_hla.fa" \
+--samplePath            = "/some/path/data/1000genome/LWK/*.cram" \
+--outputDir             = "/some/path/results/1000genome_LWK_20Samples" \
+--batchid               = "1000genome_LWK_20Samples"
+
+
+</pre>
 
 # Results
 

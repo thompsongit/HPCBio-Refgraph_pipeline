@@ -28,7 +28,7 @@ metricsPath                  = "${params.outputDir}/assembly_metrics"
 
 /*cluster parameters */
 myExecutor                   = 'slurm'
-myQueue                      = 'normal'
+myQueue                      = 'hpcbio'
 defaultCPU                   = '1'
 defaultMemory                = '20'
 assemblerCPU                 = '12'
