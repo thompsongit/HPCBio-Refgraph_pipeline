@@ -54,9 +54,43 @@ nextflow run Refgraph.nf \
 
 </pre>
 
+Required parameters:
+--genome                = false          /*genome fasta file, must specify complete path. Required parameters*/
+--samplePath            = false          /*input folder, must specify complete path. Required parameters*/
+--outputDir             = false          /*output folder, must specify complete path. Required parameters*/
+--singleEnd             = false          /*options: true|false. true=the input type is single end reads; false=the input type is paired reads. Default is false*/
+--assembler             = 'megahit'      /*options: megahit|masurca. Default is megahit*/
+--skipKraken2           = true           /*options: true|false. Default is true which means that kraken2 will be skipped*/
+
+
+Optional parameters for readprep --  qc-trimming and adaptor removal
+
+--skipTrim              = false           /*qc-trimming of reads. options: true|false. Default is false*/     
+--min_read_length       = '20'            /*minimum length of read to be kept after trimming for downstream analysis. Default is 20*/
+--min_base_quality      = '20'            /*minimum base quality. Default is 20*/
+--guess_adapter         = true            /*auto-detect adapter from input file. options: true|false. Default is true*/
+--forward_adaptor       = false           /*adapter sequence to be clipped off (forward). */
+--reverse_adaptor       = false           /*adapter sequence to be clipped off (reverse). Used for paired reads only*.*/
+
 # Results
 
-text goes here
+The results are placed in the path specified with the outputDir parameter. 
+This is the folder structure of the results folder:
+
+<pre>
+assembly_metrics
+megahit
+multiqc
+read_prep
+trimmed  
+</pre>
+
+The results of the first step, extract unmapped reads, go in the read_prep folder.
+The results of the second step, qc-trimming reads, go in the trimmed folder.
+The results of the third step, generate assembly with megahit, go in the megahit folder.
+The results of QC step on the reads go in the multiqc folder.
+The results of the QC step on the assembly go in the assembly_metrics folder.
+
 
 # Trobleshooting
 
