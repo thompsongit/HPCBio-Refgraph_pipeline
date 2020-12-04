@@ -20,14 +20,32 @@ Clone this repo to your local (linux-based) cluster environment....
 
 # Running the pipeline
 
-Make sure  nextflow is installed and in your path.
+At the moment, the workflow is adapted to UIUC Biocluster and environment modules. We expect this 
+to change in the near future.  However, for now we recommend adding the following setting 
+so that conflicting modules can be swapped (this currently works for the workflow)
+
+```
+# either add this line to your ~/.bashrc or export prior to launching the workflow
+export LMOD_DISABLE_SAME_NAME_AUTOSWAP=no
+```
+
+Next, make sure nextflow is installed and in your path.  For UIUC Biocluster this can 
+be accomplished using the environment module:
+
+```
+$ module load nextflow/20.01.0-Java-1.8.0_152
+NOTICE: Please limit the number of nextflow jobs to 3 at a time.  Using more creates a lot of stress on the shared filesystem on the cluster
+Please set the environmental variable NXF_HOME to a directory in your home directory.  Without this parameter, nextflow will not work.
+An example is 'export NXF_HOME=$HOME/nextflow'.
+
+$ export NXF_HOME=$HOME/nextflow
+```
 
 The basic command to run the pipeline is: 
 
-<pre>
+```
 nextflow run Refgraph.nf
-</pre>
-
+```
 
 There are a number of parameters whose values can be set or reset at the command line or via a config file.
 
@@ -36,23 +54,31 @@ Examples of config files are included in this repo in the conf folder.
 
 To run the pipeline with a config file, please type:
 
-<pre>
+```
 nextflow run -c config Refgraph.nf
-</pre>
+```
 
+An example config file (note the use of the queue here)
+
+```
+params {
+   myQueue="classroom"
+   genome="/home/classroom/hpcbio/h3a/reference/GRCh38_full_analysis_set_plus_decoy_hla.fa"
+   samplePath="./subset/*.cram"
+   outputDir="./test-run"
+   batchid="1000g-test"
+}
+```
 
 To run the pipeline and specify parameters at the command line, please type all parameters in the same line or by using the backslash to continue in the next line like this:
 
-<pre>
-
+```
 nextflow run Refgraph.nf \
 --genome                = "/some/path/data/genome/GRCh38_full_analysis_set_plus_decoy_hla.fa" \
 --samplePath            = "/some/path/data/1000genome/LWK/*.cram" \
 --outputDir             = "/some/path/results/1000genome_LWK_20Samples" \
 --batchid               = "1000genome_LWK_20Samples"
-
-
-</pre>
+```
 
 Required parameters:
 
@@ -78,13 +104,13 @@ Optional parameters for readprep --  qc-trimming and adaptor removal
 The results are placed in the path specified with the outputDir parameter. 
 This is the folder structure of the results folder:
 
-<pre>
+```
 assembly_metrics
 megahit
 multiqc
 read_prep
 trimmed  
-</pre>
+```
 
 -  The results of the first step, extract unmapped reads, go in the read_prep folder.
 -  The results of the second step, qc-trimming reads, go in the trimmed folder.
@@ -96,3 +122,10 @@ trimmed
 # Troubleshooting
 
 text goes here
+
+# Authors
+
+* Yuan Tian
+* Gloria Rendon
+* Chris Fields
+* **ADD YOUR NAME HERE**
