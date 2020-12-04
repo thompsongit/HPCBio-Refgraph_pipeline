@@ -93,6 +93,6 @@ trimmed
 -  The results of the QC step on the assembly go in the assembly_metrics folder.
 
 
-# Trobleshooting
+# Troubleshooting
 
 text goes here
