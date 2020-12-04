@@ -28,17 +28,17 @@ metricsPath                  = "${params.outputDir}/assembly_metrics"
 
 /*cluster parameters */
 myExecutor                   = 'slurm'
-myQueue                      = 'hpcbio'
+params.myQueue               = 'normal'
 defaultCPU                   = '1'
 defaultMemory                = '20'
 assemblerCPU                 = '12'
-assemblerMemory              = '500'
-params.clusterAcct           = " -A h3bionet "
+assemblerMemory              = '100'
+// params.clusterAcct           = " -A h3bionet "
 
 /*software stack*/
 params.perlMod               = 'Perl/5.24.1-IGB-gcc-4.9.4'
 params.fastpMod              = 'fastp/0.20.0-IGB-gcc-4.9.4'
-params.samtoolsMod           = 'samtools/1.3'
+params.samtoolsMod           = 'SAMtools/1.10-IGB-gcc-8.2.0'
 params.megahitMod            = 'MEGAHIT/1.2.9-IGB-gcc-8.2.0'
 params.assemblathon          = "/home/groups/hpcbio/apps/FAlite/assemblathon_stats.pl"
 params.multiqcMod            = "MultiQC/1.7-IGB-gcc-4.9.4-Python-3.6.1"
@@ -63,7 +63,7 @@ process prepare_genome{
     executor               myExecutor
     clusterOptions         params.clusterAcct 
     cpus                   defaultCPU
-    queue                  myQueue
+    queue                  params.myQueue
     memory                 "$defaultMemory GB"
     module                 params.samtoolsMod
     storeDir               genomeStore
@@ -93,7 +93,7 @@ process extract_unmap {
     executor               myExecutor
     clusterOptions         params.clusterAcct 
     cpus                   defaultCPU
-    queue                  myQueue
+    queue                  params.myQueue
     memory                 "$defaultMemory GB"
     module                 params.samtoolsMod
     publishDir             readPrepPath, mode: "copy"	    
@@ -103,7 +103,7 @@ process extract_unmap {
     stageOutMode           'copy'
     
     input:
-    set val(name), file(CRAM) from CRAM_Ch1	
+    file name from CRAM_Ch1
     file genome from genome_file
     file index from genome_index_ch
 
@@ -139,7 +139,7 @@ process trimming {
     executor               myExecutor
     clusterOptions         params.clusterAcct 
     cpus                   2
-    queue                  myQueue
+    queue                  params.myQueue
     memory                 "$defaultMemory GB"
     publishDir             trimPath, mode: "copy"
     module                 params.fastpMod
@@ -187,7 +187,7 @@ process megahit_assemble {
     executor               myExecutor
     clusterOptions         params.clusterAcct 
     cpus                   assemblerCPU
-    queue                  myQueue
+    queue                  params.myQueue
     memory                 "$assemblerMemory GB"
     module                 params.megahitMod 
     publishDir             megahitPath , mode:'copy'
@@ -245,7 +245,7 @@ process MultiQC_readPrep {
     executor               myExecutor
     clusterOptions         params.clusterAcct 
     cpus                   2
-    queue                  myQueue
+    queue                  params.myQueue
     memory                 "$defaultMemory GB"
     module                 params.multiqcMod
     publishDir             multiqcPath, mode: 'copy', overwrite: true
@@ -264,7 +264,7 @@ process MultiQC_readPrep {
 process Assembly_metrics {
     executor               myExecutor
     cpus                   2
-    queue                  myQueue
+    queue                  params.myQueue
     memory                 "$defaultMemory GB"
     module                 params.perlMod
     publishDir             metricsPath, mode: 'copy', overwrite: true
