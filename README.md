@@ -18,7 +18,7 @@ This program expects the following tools/languages to be installed as modules an
 
 Clone this repo to your local (linux-based) cluster environment....
 
-# Running the pipeline
+# Running the workflow
 
 At the moment, the workflow is adapted to UIUC Biocluster and environment modules. We expect this 
 to change in the near future.  However, for now we recommend adding the following setting 
@@ -51,25 +51,6 @@ There are a number of parameters whose values can be set or reset at the command
 
 Examples of config files are included in this repo in the conf folder.
 
-
-To run the pipeline with a config file, please type:
-
-```
-nextflow run -c config Refgraph.nf
-```
-
-An example config file (note the use of the queue here)
-
-```
-params {
-   myQueue="classroom"
-   genome="/home/classroom/hpcbio/h3a/reference/GRCh38_full_analysis_set_plus_decoy_hla.fa"
-   samplePath="./subset/*.cram"
-   outputDir="./test-run"
-   batchid="1000g-test"
-}
-```
-
 To run the pipeline and specify parameters at the command line, please type all parameters in the same line or by using the backslash to continue in the next line like this:
 
 ```
@@ -98,6 +79,29 @@ Optional parameters for readprep --  qc-trimming and adaptor removal
 -  --guess_adapter         = true            /*auto-detect adapter from input file. options: true|false. Default is true*/
 -  --forward_adaptor       = false           /*adapter sequence to be clipped off (forward). */
 -  --reverse_adaptor       = false           /*adapter sequence to be clipped off (reverse). Used for paired reads only*.*/
+
+## RefGraph Hackathon
+
+Once you are logged into the cluster, to run the pipeline with a config file for the hackathoon, please type:
+
+```
+nextflow run -c config Refgraph.nf
+```
+
+An example config file used for the RefGraph hackathon (note the use of the queue here):
+
+```
+params {
+   assemblathon="/home/classroom/hpcbio/h3a/scripts/assemblathon_stats.pl"
+   myQueue="classroom"
+   genome="/home/classroom/hpcbio/h3a/reference/GRCh38_full_analysis_set_plus_decoy_hla.fa"
+   samplePath="./subset/*.cram"
+   outputDir="./test-run"
+   batchid="1000g-test"
+}
+```
+
+For the Hackathon, example CRAM files are found in the `/home/classroom/hpcbio/h3a/example_data/1000g/` directory. Here I created a `subset` folder with a few of the CRAM files for testing.
 
 # Results
 
