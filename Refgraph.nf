@@ -49,7 +49,6 @@ genomeStore                  = genome_file.getParent()
 if( !genome_file.exists() ) exit 1, "Missing reference genome file: ${genome_file}"
 CRAM_Ch1 = Channel.fromPath("${params.samplePath}")
 
-
 /*
 
   prepare_genome 
@@ -88,6 +87,37 @@ process prepare_genome{
 
 */
 
+process qc_input {
+    tag                    { name }
+    executor               myExecutor
+    clusterOptions         params.clusterAcct 
+    cpus                   defaultCPU
+    queue                  params.myQueue
+    memory                 "$defaultMemory GB"
+    module                 params.samtoolsMod
+    publishDir             readPrepPath, mode: "copy"	    
+    validExitStatus        0,1
+    errorStrategy          'ignore'
+    stageOutMode           'copy'
+    
+    input:
+    set val(name), file(CRAM) from CRAM_Ch1	
+
+    output:
+    set val(name), file('*_ok.cram') optional true into extract_ch
+    
+    script:
+    """
+    samtools quickcheck ${name}
+    if [ \$? -eq 0 ]
+    then
+        cp ${name} ${name.baseName}_ok.cram
+    fi
+    """
+
+}
+
+
 process extract_unmap {
     tag                    { name }
     executor               myExecutor
@@ -103,7 +133,7 @@ process extract_unmap {
     stageOutMode           'copy'
     
     input:
-    set val(name), file(CRAM) from CRAM_Ch1	
+    set val(name), file(okcram) from extract_ch	
     file genome from genome_file
     file index from genome_index_ch
 
@@ -115,12 +145,18 @@ process extract_unmap {
     if(params.singleEnd){
     """
     samtools view -bt ${index} -S -b -f 4 ${name} > ${name.baseName}.unmap.bam
-    samtools fastq -f 4 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R1.fastq
+    if [ -s ${name.baseName}.unmap.bam ]
+    then
+	      samtools fastq -f 4 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R1.fastq
+    fi
     """
     } else {
     """
     samtools view -bt ${index} -S -b -f 4 ${name} > ${name.baseName}.unmap.bam
-    samtools fastq -f 12 ${name.baseName}.unmap.bam -1 ${name.baseName}_PE_R1.fastq -2 ${name.baseName}_PE_R2.fastq
+    if [ -s ${name.baseName}.unmap.bam ]
+    then
+         samtools fastq -f 12 ${name.baseName}.unmap.bam -1 ${name.baseName}_PE_R1.fastq -2 ${name.baseName}_PE_R2.fastq
+    fi
     #samtools fastq -f 68 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R1.fastq
     #samtools fastq -f 132 -F 8 ${name.baseName}.unmap.bam > ${name.baseName}_SE_R2.fastq
     """    
