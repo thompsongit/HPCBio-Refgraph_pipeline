@@ -40,7 +40,7 @@ params.perlMod               = 'Perl/5.24.1-IGB-gcc-4.9.4'
 params.fastpMod              = 'fastp/0.20.0-IGB-gcc-4.9.4'
 params.samtoolsMod           = 'SAMtools/1.10-IGB-gcc-8.2.0'
 params.megahitMod            = 'MEGAHIT/1.2.9-IGB-gcc-8.2.0'
-params.assemblathon          = "/home/groups/hpcbio/apps/FAlite/assemblathon_stats.pl"
+params.assemblyMetricsMod    = "BBMap/38.36-Java-1.8.0_152"
 params.multiqcMod            = "MultiQC/1.7-IGB-gcc-4.9.4-Python-3.6.1"
 
 /*Prepare input*/
@@ -236,28 +236,48 @@ process megahit_assemble {
     set name, file(fastqs)  from trim_ch  
 
     output:
-    set val(name), file('*.stats') optional true into metrics_ch
+    set val(name), file('*.final.contigs.fa') optional true into assembly_ch
     file '*'
 
     script:
     if(params.singleEnd){
     """
     megahit -1 ${fastqs[0]} -o ${name.baseName}.megahit_results
-    
-    perl $params.assemblathon ${name.baseName}.megahit_results/final.contigs.fa > ${name.baseName}.megahit_results/final.contigs.fa.stats
+    cp ${name.baseName}.megahit_results/final.contigs.fa ${name.baseName}.final.contigs.fa
     """
     } else {
     """
-    #megahit -1 ${fastqs[0]} -2 ${fastqs[1]} -r ${fastqs[2]},${fastqs[3]},${fastqs[4]},${fastqs[5]} -o ${name.baseName}.megahit_results
-
     megahit -1 ${fastqs[0]} -2 ${fastqs[1]}  -o ${name.baseName}.megahit_results
-
-    perl $params.assemblathon ${name.baseName}.megahit_results/final.contigs.fa > ${name.baseName}.final.contigs.fa.stats
+    cp ${name.baseName}.megahit_results/final.contigs.fa ${name.baseName}.final.contigs.fa
 
     """
     }
 }
 
+
+process calc_assembly_metrics {
+    tag                    { name }
+    executor               myExecutor
+    clusterOptions         params.clusterAcct 
+    cpus                   defaultCPU
+    queue                  params.myQueue
+    memory                 "$defaultMemory GB"
+    module                 params.assemblyMetricsMod 
+    publishDir             metricsPath , mode:'copy', overwrite: true
+    
+    input:
+    set name, file(contig)  from assembly_ch  
+
+    output:
+    set val(name), file('*.stats') optional true into metrics_ch
+    file '*'
+
+    script:
+    """
+    stats.sh ${contig} > ${name.baseName}.stats
+    """
+
+}
 /*
 
   masurca
